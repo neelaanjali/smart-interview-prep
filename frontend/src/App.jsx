@@ -1,5 +1,8 @@
-import { db } from "./firebase";
+import { db } from "./firebase.js";
 import { collection, addDoc } from "firebase/firestore";
+import { API_BASE } from "./api/base";
+
+
 
 function App() {
   const testFirestore = async () => {
@@ -9,6 +12,13 @@ function App() {
     });
     alert("Data sent to Firestore!");
   };
+
+  async function testBackend() {
+    const res = await fetch(`${API_BASE}/health`);
+    const data = await res.json();
+    console.log(res)
+    console.log(data);
+  }
 
   return (
     <div style={{ textAlign: "center", marginTop: "50px" }}>
@@ -27,6 +37,7 @@ function App() {
 
       <div>
         <button onClick={testFirestore}>Test Firebase</button>
+        <button onClick={testBackend}>Backend</button>
       </div>
     </div>
   );
