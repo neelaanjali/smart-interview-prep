@@ -1,45 +1,48 @@
-import { db } from "./firebase.js";
-import { collection, addDoc } from "firebase/firestore";
-import { API_BASE } from "./api/base";
-
-
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './hooks/useAuth';
+import Login from './components/Login';
+import Dashboard from './components/Dashboard';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
-  const testFirestore = async () => {
-    await addDoc(collection(db, "testCollection"), {
-      message: "Firebase is working!",
-      createdAt: new Date(),
-    });
-    alert("Data sent to Firestore!");
-  };
+  const { user, loading } = useAuth();
 
-  async function testBackend() {
-    const res = await fetch(`${API_BASE}/health`);
-    const data = await res.json();
-    console.log(res)
-    console.log(data);
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh'
+      }}>
+        Loading...
+      </div>
+    );
   }
 
   return (
-    <div style={{ textAlign: "center", marginTop: "50px" }}>
-      <div
-        style={{
-          display: "inline-block",
-          padding: "20px 40px",
-          border: "2px solid black",
-          borderRadius: "10px",
-          backgroundColor: "#f5f5f5",
-          marginBottom: "20px",
-        }}
-      >
-        <h1>Smart Interview Prep</h1>
-      </div>
-
-      <div>
-        <button onClick={testFirestore}>Test Firebase</button>
-        <button onClick={testBackend}>Backend</button>
-      </div>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route 
+          path="/login" 
+          element={user ? <Navigate to="/dashboard" /> : <Login />} 
+        />
+        
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/" 
+          element={<Navigate to={user ? "/dashboard" : "/login"} />} 
+        />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
