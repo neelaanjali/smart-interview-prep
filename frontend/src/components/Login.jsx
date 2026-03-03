@@ -39,9 +39,9 @@ const Login = () => {
         disabled={loading}
         style={{
           padding: '10px 20px',
-          fontSize: '16px',
+          fontSize: '20px',
           cursor: loading ? 'not-allowed' : 'pointer',
-          backgroundColor: '#4285f4',
+          backgroundColor: '#B0E0E6',
           color: 'white',
           border: 'none',
           borderRadius: '4px',
