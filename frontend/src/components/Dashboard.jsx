@@ -50,6 +50,7 @@ const Dashboard = () => {
             <h3>Profile</h3>
             <p>Name: {user?.displayName}</p>
             <p>Email: {user?.email}</p>
+            <p>Time Zone: {user?.timeZone || "Not set"}</p>
           </>
         );
       default:
@@ -59,7 +60,7 @@ const Dashboard = () => {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f9fafb" }}>
-      {/* Header */}
+      {/* Header with Logo */}
       <header
         style={{
           padding: "20px 40px",
@@ -70,11 +71,22 @@ const Dashboard = () => {
           alignItems: "center",
         }}
       >
-        <h2>Smart Interview Prep</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <img 
+            src="/SIP.png" 
+            alt="Smart Interview Prep Logo" 
+            style={{ 
+              height: "40px", 
+              width: "auto",
+              objectFit: "contain"
+            }} 
+          />
+          <h2 style={{ margin: 0 }}>Smart Interview Prep</h2>
+        </div>
 
         <div>
           <span style={{ marginRight: "15px" }}>
-            👋 {user?.displayName || "User"}
+            {user?.displayName || "User"}
           </span>
           <button
             onClick={handleLogout}
@@ -112,7 +124,7 @@ const Dashboard = () => {
               cursor: "pointer",
               paddingBottom: "5px",
               borderBottom:
-                activeTab === tab ? "2px solid #2563eb" : "2px solid transparent",
+                activeTab === tab ? "2px solid #B0E0E6" : "2px solid transparent",
               fontWeight: activeTab === tab ? "600" : "400",
             }}
           >
