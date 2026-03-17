@@ -1,12 +1,23 @@
 import { useState } from "react";
 import { logout } from "../services/authService";
 import { useAuth } from "../hooks/useAuth";
+import { authedFetch } from "../api/authedFetch";
 
 const TABS = {
   OVERVIEW: "Overview",
   PRACTICE: "Practice",
   PROGRESS: "Progress",
   PROFILE: "Profile",
+};
+
+const handleConnectGmail = async () => {
+  try {
+    const res = await authedFetch("/auth/googleConnect");
+    const data = await res.json();
+    window.location.href = data.url;
+  } catch (error) {
+    console.error("Failed to connect Gmail:", error);
+  }
 };
 
 const Dashboard = () => {
@@ -28,6 +39,7 @@ const Dashboard = () => {
           <>
             <h3>Overview</h3>
             <p>Welcome back! Ready to prep for your next interview?</p>
+            <button onClick={handleConnectGmail}>Connect Gmail</button>
           </>
         );
       case TABS.PRACTICE:
@@ -112,7 +124,9 @@ const Dashboard = () => {
               cursor: "pointer",
               paddingBottom: "5px",
               borderBottom:
-                activeTab === tab ? "2px solid #2563eb" : "2px solid transparent",
+                activeTab === tab
+                  ? "2px solid #2563eb"
+                  : "2px solid transparent",
               fontWeight: activeTab === tab ? "600" : "400",
             }}
           >
