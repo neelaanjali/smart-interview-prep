@@ -1,8 +1,12 @@
 import { auth, googleProvider } from '../firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
+import { setPersistence, browserSessionPersistence } from "firebase/auth";
+
+
 
 export const signInWithGoogle = async () => {
   try {
+    await setPersistence(auth, browserSessionPersistence);
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error) {
