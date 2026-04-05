@@ -1,3 +1,4 @@
+/* eslint-disable object-curly-spacing */
 const { createOAuthClient } = require("../services/googleOAuthClient");
 
 const googleConnect = async (req, res) => {
