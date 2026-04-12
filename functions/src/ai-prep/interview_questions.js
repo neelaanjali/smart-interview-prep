@@ -1,59 +1,102 @@
-const { GoogleGenAI } = require('@google/genai');
+const axios = require("axios");
 
-// 1. Import your sorting function from the other file
-const { getBehavioralInterviews } = require('./email_sort.js');
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
-// Setup the client using your placeholder string!
-const ai = new GoogleGenAI({ apiKey: "INSERT_API_KEY" });
-
-// Dummy email data so you can test the connection
-//const testEmails = [
-//    { subject: "Interview Invitation", from: "hr@google.com", snippet: "We would like to invite you to a phone screen for the Software Engineer role." },
-//    { subject: "HackerRank Assessment", from: "amazon@amazon.com", snippet: "Please complete this coding assessment for the Backend Dev role." },
-//    { subject: "Next Steps", from: "recruiting@delta.com", snippet: "Please complete your HireVue prerecorded interview for the Data Analyst position." }
-//];
-
-async function runInterviewPrep() {
-    try {
-        console.log("Scanning emails for behavioral interviews...");
-
-        // 2. Call the function from your OTHER file
-        const upcomingInterviews = await getBehavioralInterviews(testEmails);
-
-        // If it didn't find any non-technical interviews, stop the program
-        if (upcomingInterviews.length === 0) {
-            console.log("No upcoming behavioral interviews found in your emails.");
-            return;
-        }
-
-        console.log(`Found ${upcomingInterviews.length} interviews! Generating prep questions...\n`);
-
-        // 3. Loop through every interview found and ask Gemini for questions
-        for (const interview of upcomingInterviews) {
-            console.log(`\n========================================`);
-            console.log(` Generating questions for: ${interview.company} - ${interview.role}`);
-            console.log(`========================================\n`);
-
-            // Dynamically inject the company, role, and type into the prompt
-            const sentence = `I have a ${interview.type} coming up for the ${interview.role} position at ${interview.company}. Please give me 5 tailored interview prep questions.`;
-
-            const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash", 
-                contents: sentence,
-                config: {
-                    systemInstruction: "Give raw output only. No conversational filler. Number the questions 1 through 5. Do NOT use markdown, asterisks, or bullet points anywhere in your response. Use plain text and standard spacing only."
-                }
-            });
-
-            console.log(response.text);
-        }
-
-        console.log("\nAll prep questions generated! Good luck!");
-
-    } catch (error) {
-        console.error("Connection Error:", error);
+async function generateInterviewPrep(interviews) {
+  try {
+    if (!Array.isArray(interviews) || interviews.length === 0) {
+      return [];
     }
+
+    const prepResults = [];
+
+    for (const interview of interviews) {
+      console.log("========================================");
+      console.log(`Generating prep for: ${interview.company} - ${interview.role}`);
+      console.log("========================================\n");
+
+      const prompt = `
+Generate tailored prep for this upcoming non-technical interview.
+
+Company: ${interview.company}
+Role: ${interview.role}
+Interview Type: ${interview.type || "Unknown"}
+Interview Date: ${interview.date || "Unknown"}
+
+This is a non-technical interview. It may be a recruiter screen, HR interview, phone screen, screening call, initial interview, one-way interview, prerecorded interview, proctored interview, AI interview, or asynchronous interview.
+
+Return JSON:
+{
+  "company": "",
+  "role": "",
+  "type": "",
+  "date": "",
+  "questions": ["", "", "", "", ""],
+  "focusAreas": ["", "", ""],
+  "tips": ["", "", ""]
+}
+`;
+
+      const response = await axios.post(
+        "https://api.deepseek.com/chat/completions",
+        {
+          model: "deepseek-chat",
+          messages: [
+            {
+              role: "system",
+              content:
+                "Return clean JSON only. Generate exactly 5 tailored non-technical interview prep questions, 3 focus areas, and 3 preparation tips.",
+            },
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const rawText = response.data?.choices?.[0]?.message?.content;
+
+      if (!rawText) {
+        console.error("DeepSeek returned no content.");
+        continue;
+      }
+
+      const parsed = JSON.parse(rawText);
+
+      const prepItem = {
+        company: parsed.company?.trim() || interview.company,
+        role: parsed.role?.trim() || interview.role,
+        type: parsed.type?.trim() || interview.type || "",
+        date: parsed.date?.trim() || interview.date || "",
+        questions: Array.isArray(parsed.questions) ? parsed.questions : [],
+        focusAreas: Array.isArray(parsed.focusAreas) ? parsed.focusAreas : [],
+        tips: Array.isArray(parsed.tips) ? parsed.tips : [],
+      };
+
+      prepResults.push(prepItem);
+
+      console.log("PREP RESULT:");
+      console.log(JSON.stringify(prepItem, null, 2));
+      console.log("\n");
+    }
+
+    return prepResults;
+  } catch (error) {
+    console.error(
+      "DeepSeek API Error in generateInterviewPrep:",
+      error.response?.data || error.message
+    );
+    return [];
+  }
 }
 
-// Run the function
-runInterviewPrep();
+module.exports = { generateInterviewPrep };
