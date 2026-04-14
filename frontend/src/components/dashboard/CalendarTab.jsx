@@ -98,6 +98,33 @@ function CalendarTab({
     fetchInterviews();
   }, []);
 
+  const handleDeleteInterview = async (interviewId) => {
+    if (!interviewId) return;
+
+    const confirmed = window.confirm(
+      "Delete this interview from your list? This cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await authedFetch(`/interviews/${interviewId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to delete interview");
+      }
+
+      setBackendInterviews((prev) =>
+        prev.filter((item) => item.id !== interviewId),
+      );
+    } catch (error) {
+      console.error("Failed to delete interview:", error);
+      alert("Failed to delete interview");
+    }
+  };
+
   const handleScanGmail = async () => {
     try {
       setIsScanning(true);
@@ -131,6 +158,13 @@ function CalendarTab({
     } else setViewMonth((m) => m + 1);
   };
 
+  const goToToday = () => {
+    const now = new Date();
+    setViewYear(now.getFullYear());
+    setViewMonth(now.getMonth());
+    setSelectedDay(now.getDate());
+  };
+
   const dateKey = (y, m, d) =>
     `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
@@ -141,6 +175,7 @@ function CalendarTab({
     const key = dateKey(parsed.year, parsed.month, parsed.day);
     if (!backendEventsMap[key]) backendEventsMap[key] = [];
     backendEventsMap[key].push({
+      id: iv.id,
       title: `${iv.company} - ${iv.role}`,
       type: "gmail",
       raw: iv,
@@ -176,6 +211,28 @@ function CalendarTab({
         ...(manualEvents[selectedKey] || []),
       ]
     : [];
+
+  const upcomingInterviews = backendInterviews
+    .map((iv) => {
+      const parsedDate = new Date(iv.date);
+      return {
+        ...iv,
+        parsedDate,
+      };
+    })
+    .filter((iv) => !Number.isNaN(iv.parsedDate.getTime()))
+    .filter((iv) => iv.parsedDate.getTime() >= new Date().setHours(0, 0, 0, 0))
+    .sort((a, b) => a.parsedDate.getTime() - b.parsedDate.getTime())
+    .slice(0, 5);
+
+  const jumpToInterviewDate = (interview) => {
+    const date = new Date(interview.date);
+    if (Number.isNaN(date.getTime())) return;
+
+    setViewYear(date.getFullYear());
+    setViewMonth(date.getMonth());
+    setSelectedDay(date.getDate());
+  };
 
   return (
     <div
@@ -218,6 +275,23 @@ function CalendarTab({
           </select>
           <button onClick={nextMonth} style={navBtn}>
             ›
+          </button>
+
+          <button
+            onClick={goToToday}
+            style={{
+              border: "1.5px solid #bfdbfe",
+              background: "#eff6ff",
+              color: "#1d4ed8",
+              borderRadius: "8px",
+              padding: "7px 10px",
+              fontSize: "0.78rem",
+              fontWeight: "700",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Today
           </button>
 
           <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
@@ -423,148 +497,235 @@ function CalendarTab({
           alignSelf: "start",
         }}
       >
-        {selectedDay ? (
-          <>
-            <h4
-              style={{
-                margin: "0 0 0.25rem",
-                fontSize: "1.1rem",
-                fontWeight: "700",
-                color: "#1e293b",
-              }}
-            >
-              {MONTHS[viewMonth]} {selectedDay}, {viewYear}
-            </h4>
-            <p
-              style={{
-                fontSize: "0.8rem",
-                color: "#94a3b8",
-                margin: "0 0 1.25rem",
-              }}
-            >
-              {selectedEvents.length} event
-              {selectedEvents.length !== 1 ? "s" : ""}
+        <div style={{ marginBottom: "1rem" }}>
+          <p
+            style={{
+              margin: "0 0 0.45rem",
+              fontSize: "0.72rem",
+              fontWeight: "700",
+              color: "#64748b",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+            }}
+          >
+            Upcoming Interviews
+          </p>
+
+          {upcomingInterviews.length === 0 ? (
+            <p style={{ margin: 0, fontSize: "0.78rem", color: "#94a3b8" }}>
+              None scheduled yet.
             </p>
-            {selectedEvents.length > 0 ? (
-              <div style={{ marginBottom: "1.25rem" }}>
-                {selectedEvents.map((ev, i) => (
-                  <div
-                    key={i}
+          ) : (
+            <div style={{ display: "grid", gap: "0.45rem" }}>
+              {upcomingInterviews.map((interview) => (
+                <button
+                  key={interview.id}
+                  onClick={() => jumpToInterviewDate(interview)}
+                  style={{
+                    border: "1px solid #e2e8f0",
+                    background: "#f8fafc",
+                    borderRadius: "8px",
+                    padding: "0.5rem",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <p
                     style={{
-                      padding: "0.6rem 0.75rem",
-                      background: ev.type === "gmail" ? "#f0fdf4" : "#eff6ff",
-                      borderLeft: `3px solid ${ev.type === "gmail" ? "#22c55e" : "#3b82f6"}`,
-                      borderRadius: "6px",
-                      marginBottom: "0.5rem",
-                      fontSize: "0.8rem",
-                      color: "#334155",
-                      fontWeight: "500",
+                      margin: "0 0 0.15rem",
+                      fontSize: "0.78rem",
+                      fontWeight: "700",
+                      color: "#1e293b",
                     }}
                   >
-                    {ev.type === "gmail" && (
-                      <span
-                        style={{
-                          fontSize: "0.65rem",
-                          color: "#16a34a",
-                          display: "block",
-                          marginBottom: "4px",
-                          fontWeight: "600",
-                        }}
-                      >
-                        FROM GMAIL
-                      </span>
-                    )}
-                    <span style={{ display: "block", marginBottom: "6px" }}>
-                      {ev.title}
-                    </span>
-                    <button
-                      onClick={() => onStudy(ev)}
+                    {interview.company} - {interview.role}
+                  </p>
+                  <p
+                    style={{ margin: 0, fontSize: "0.7rem", color: "#64748b" }}
+                  >
+                    {interview.parsedDate.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "1rem" }}>
+          {selectedDay ? (
+            <>
+              <h4
+                style={{
+                  margin: "0 0 0.25rem",
+                  fontSize: "1.1rem",
+                  fontWeight: "700",
+                  color: "#1e293b",
+                }}
+              >
+                {MONTHS[viewMonth]} {selectedDay}, {viewYear}
+              </h4>
+              <p
+                style={{
+                  fontSize: "0.8rem",
+                  color: "#94a3b8",
+                  margin: "0 0 1.25rem",
+                }}
+              >
+                {selectedEvents.length} event
+                {selectedEvents.length !== 1 ? "s" : ""}
+              </p>
+              {selectedEvents.length > 0 ? (
+                <div style={{ marginBottom: "1.25rem" }}>
+                  {selectedEvents.map((ev, i) => (
+                    <div
+                      key={i}
                       style={{
-                        padding: "4px 10px",
-                        background: "#1e293b",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "5px",
-                        fontSize: "0.7rem",
-                        fontWeight: "600",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
+                        padding: "0.6rem 0.75rem",
+                        background: ev.type === "gmail" ? "#f0fdf4" : "#eff6ff",
+                        borderLeft: `3px solid ${ev.type === "gmail" ? "#22c55e" : "#3b82f6"}`,
+                        borderRadius: "6px",
+                        marginBottom: "0.5rem",
+                        fontSize: "0.8rem",
+                        color: "#334155",
+                        fontWeight: "500",
                       }}
                     >
-                      Study for this
-                    </button>
-                  </div>
-                ))}
+                      {ev.type === "gmail" && (
+                        <span
+                          style={{
+                            fontSize: "0.65rem",
+                            color: "#16a34a",
+                            display: "block",
+                            marginBottom: "4px",
+                            fontWeight: "600",
+                          }}
+                        >
+                          FROM GMAIL
+                        </span>
+                      )}
+                      <span style={{ display: "block", marginBottom: "6px" }}>
+                        {ev.title}
+                      </span>
+                      {ev.id ? (
+                        <button
+                          onClick={() => onStudy(ev)}
+                          style={{
+                            padding: "4px 10px",
+                            background: "#1e293b",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "5px",
+                            fontSize: "0.7rem",
+                            fontWeight: "600",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Study for this
+                        </button>
+                      ) : null}
+                      {ev.id ? (
+                        <button
+                          onClick={() => handleDeleteInterview(ev.id)}
+                          style={{
+                            marginLeft: "8px",
+                            padding: "4px 8px",
+                            background: "#fee2e2",
+                            color: "#b91c1c",
+                            border: "1px solid #fecaca",
+                            borderRadius: "5px",
+                            fontSize: "0.7rem",
+                            fontWeight: "700",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                          title="Delete interview"
+                        >
+                          X
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#cbd5e1",
+                    marginBottom: "1.25rem",
+                  }}
+                >
+                  No events yet.
+                </p>
+              )}
+              <div
+                style={{ borderTop: "1px solid #f1f5f9", paddingTop: "1rem" }}
+              >
+                <p
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
+                    color: "#64748b",
+                    marginBottom: "0.5rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  Add Event
+                </p>
+                <input
+                  type="text"
+                  value={newEventTitle}
+                  onChange={(e) => setNewEventTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addEvent()}
+                  placeholder="e.g. Amazon - HR Screen"
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.75rem",
+                    border: "1.5px solid #e2e8f0",
+                    borderRadius: "6px",
+                    fontSize: "0.8rem",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    marginBottom: "0.5rem",
+                    fontFamily: "inherit",
+                  }}
+                />
+                <button
+                  onClick={addEvent}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem",
+                    background: "#1e293b",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "0.8rem",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Add to Calendar
+                </button>
               </div>
-            ) : (
-              <p
-                style={{
-                  fontSize: "0.8rem",
-                  color: "#cbd5e1",
-                  marginBottom: "1.25rem",
-                }}
-              >
-                No events yet.
+            </>
+          ) : (
+            <div style={{ textAlign: "center", paddingTop: "2rem" }}>
+              <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>
+                📅
+              </div>
+              <p style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
+                Select a day to view or add events
               </p>
-            )}
-            <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "1rem" }}>
-              <p
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: "600",
-                  color: "#64748b",
-                  marginBottom: "0.5rem",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                Add Event
-              </p>
-              <input
-                type="text"
-                value={newEventTitle}
-                onChange={(e) => setNewEventTitle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addEvent()}
-                placeholder="e.g. Amazon - HR Screen"
-                style={{
-                  width: "100%",
-                  padding: "0.5rem 0.75rem",
-                  border: "1.5px solid #e2e8f0",
-                  borderRadius: "6px",
-                  fontSize: "0.8rem",
-                  outline: "none",
-                  boxSizing: "border-box",
-                  marginBottom: "0.5rem",
-                  fontFamily: "inherit",
-                }}
-              />
-              <button
-                onClick={addEvent}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  background: "#1e293b",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontSize: "0.8rem",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                Add to Calendar
-              </button>
             </div>
-          </>
-        ) : (
-          <div style={{ textAlign: "center", paddingTop: "2rem" }}>
-            <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>📅</div>
-            <p style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
-              Select a day to view or add events
-            </p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

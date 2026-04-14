@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { authedFetch } from "../../api/authedFetch";
 
-function StudyTab({ selectedInterview, pastInterviews, onGoToAskAI }) {
+function StudyTab({ selectedInterview, pastInterviews }) {
   const getInterviewKey = (interview) =>
+    interview?.id ||
+    interview?.raw?.id ||
     `${interview?.title || "untitled"}::${interview?.date || interview?.raw?.date || "nodate"}`;
+
+  const getStoredContent = (interview) =>
+    interview?.content ||
+    interview?.prepContent ||
+    interview?.raw?.content ||
+    interview?.raw?.prepContent ||
+    "";
 
   const getInterviewMeta = (interview) => {
     const raw = interview?.raw || {};
@@ -27,8 +36,11 @@ function StudyTab({ selectedInterview, pastInterviews, onGoToAskAI }) {
   const [storedInterviews, setStoredInterviews] = useState([]);
   const [prepLibrary, setPrepLibrary] = useState({});
   const [streamedText, setStreamedText] = useState("");
-  const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [reflectionOutcome, setReflectionOutcome] = useState("");
+  const [reflectionConfidence, setReflectionConfidence] = useState(3);
+  const [reflectionNotes, setReflectionNotes] = useState("");
+  const [savingReflection, setSavingReflection] = useState(false);
   const bottomRef = useRef(null);
   const activePrepKey = activeInterview
     ? getInterviewKey(activeInterview)
@@ -52,7 +64,7 @@ function StudyTab({ selectedInterview, pastInterviews, onGoToAskAI }) {
 
           interviews.forEach((interview) => {
             const prepKey = getInterviewKey(interview);
-            const storedContent = interview.content || interview.prepContent;
+            const storedContent = getStoredContent(interview);
 
             if (storedContent) {
               next[prepKey] = {
@@ -74,105 +86,150 @@ function StudyTab({ selectedInterview, pastInterviews, onGoToAskAI }) {
     fetchStoredInterviews();
   }, []);
 
-  const getFallbackContent = (
-    title,
-  ) => `Here is your personalized prep guide for your upcoming ${title} interview.
-
-**About the Company & Role**
-Start by deeply researching the company - their core products, business model, recent news, and what makes them unique in their industry. Understanding who they are and what they value will help you speak their language and show genuine interest.
-
-**What They're Looking For**
-Based on the role, they'll be evaluating your technical depth, problem-solving approach, and how you communicate under pressure. Strong candidates demonstrate not just what they did, but why they made specific decisions and what they learned from the outcomes.
-
-**How to Structure Your Answers**
-Use the STAR framework for behavioral questions: Situation (set the context briefly), Task (what was your responsibility), Action (what you specifically did - this should be the longest part), Result (quantify the outcome where possible). Keep each answer to 2-3 minutes.
-
-**Key Topics to Review**
-Depending on the round, be prepared to discuss your past projects in depth, walk through technical decisions, and handle ambiguous problem statements. Think about 3-5 strong stories from your experience that you can adapt to different question types.
-
-**Questions to Ask Them**
-Prepare thoughtful questions that show you've done your homework. Ask about what the team is currently working on, what a successful first 90 days looks like, and what challenges the role is trying to solve. Avoid asking things easily found on their website.
-
-**Final Preparation**
-The night before: review your key stories, get good rest, and prepare your setup if it's virtual. Day of: arrive or log in early, have water nearby, and remember - it's a two-way conversation. You're evaluating them too.`;
-
   useEffect(() => {
-    if (!activeInterview) return;
-
-    const prepKey = getInterviewKey(activeInterview);
-    const existingPrep = prepLibrary[prepKey];
-
-    if (existingPrep?.content) return;
-
-    const generatePrep = async () => {
+    if (!activeInterview) {
       setStreamedText("");
       setDone(false);
-      setLoading(true);
+      return;
+    }
 
-      const streamAndStore = (fullText) => {
-        setLoading(false);
-        let i = 0;
-        const interval = setInterval(() => {
-          i += 6;
-          setStreamedText(fullText.slice(0, i));
-          if (i >= fullText.length) {
-            setStreamedText(fullText);
-            setDone(true);
-            setPrepLibrary((prev) => ({
-              ...prev,
-              [prepKey]: {
-                interview: activeInterview,
-                meta: getInterviewMeta(activeInterview),
-                content: fullText,
-                generatedAt: new Date().toISOString(),
-              },
-            }));
-            clearInterval(interval);
-          }
-        }, 16);
-      };
+    const prepKey = getInterviewKey(activeInterview);
+    const existingPrep = prepLibrary[prepKey]?.content;
+    const storedContent = getStoredContent(activeInterview);
+    const content = existingPrep || storedContent;
 
-      try {
-        const res = await authedFetch("/ai/study", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ interview: activeInterview.title }),
-        });
-        const data = await res.json();
-        const fullText =
-          data.content || getFallbackContent(activeInterview.title);
-        streamAndStore(fullText);
-      } catch {
-        streamAndStore(getFallbackContent(activeInterview.title));
-      }
-    };
-
-    generatePrep();
+    setStreamedText(content || "");
+    setDone(Boolean(content));
   }, [activeInterview, prepLibrary]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [streamedText]);
 
+  useEffect(() => {
+    const reflection = activeInterview?.reflection || {};
+    setReflectionOutcome(reflection.outcome || "");
+    setReflectionConfidence(
+      Number.isFinite(reflection.confidence) ? reflection.confidence : 3,
+    );
+    setReflectionNotes(reflection.notes || "");
+  }, [activeInterview?.id, activeInterview?.reflection]);
+
+  const handleSaveReflection = async () => {
+    const interviewId = activeInterview?.id;
+    if (!interviewId) {
+      alert("This interview cannot store reflection yet.");
+      return;
+    }
+
+    try {
+      setSavingReflection(true);
+
+      const res = await authedFetch(`/interviews/${interviewId}/reflection`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reflection: {
+            outcome: reflectionOutcome,
+            confidence: reflectionConfidence,
+            notes: reflectionNotes,
+          },
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to save reflection");
+      }
+
+      setStoredInterviews((prev) =>
+        prev.map((item) =>
+          item.id === interviewId
+            ? {
+                ...item,
+                reflection: data.reflection,
+              }
+            : item,
+        ),
+      );
+
+      setActiveInterview((prev) =>
+        prev
+          ? {
+              ...prev,
+              reflection: data.reflection,
+            }
+          : prev,
+      );
+    } catch (error) {
+      console.error("Failed to save reflection:", error);
+      alert("Failed to save reflection");
+    } finally {
+      setSavingReflection(false);
+    }
+  };
+
+  const handleDeleteInterview = async (interview) => {
+    const interviewId = interview?.id;
+    if (!interviewId) return;
+
+    const confirmed = window.confirm(
+      "Delete this interview from your list? This cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await authedFetch(`/interviews/${interviewId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to delete interview");
+      }
+
+      setStoredInterviews((prev) =>
+        prev.filter((item) => item.id !== interviewId),
+      );
+
+      setPrepLibrary((prev) => {
+        const next = { ...prev };
+        delete next[getInterviewKey(interview)];
+        return next;
+      });
+
+      if (activeInterview?.id === interviewId) {
+        setActiveInterview(null);
+        setStreamedText("");
+        setDone(false);
+      }
+    } catch (error) {
+      console.error("Failed to delete interview:", error);
+      alert("Failed to delete interview");
+    }
+  };
+
   const handleSelectInterview = (interview) => {
     const prepKey = getInterviewKey(interview);
     const existingPrep = prepLibrary[prepKey];
-    const storedContent = interview.content || interview.prepContent;
+    const storedContent = getStoredContent(interview);
 
     setActiveInterview(interview);
 
     if (existingPrep?.content) {
       setStreamedText(existingPrep.content);
       setDone(true);
-      setLoading(false);
       return;
     }
 
     if (storedContent) {
       setStreamedText(storedContent);
       setDone(true);
-      setLoading(false);
+      return;
     }
+
+    setStreamedText("");
+    setDone(false);
   };
 
   const renderFormattedText = (text) => {
@@ -243,9 +300,9 @@ The night before: review your key stories, get good rest, and prepare your setup
             lineHeight: 1.6,
           }}
         >
-          Head to the <strong>Calendar</strong> tab, click on an interview
-          event, and hit <strong>📚 Study for this</strong> to get your
-          personalized prep guide.
+          Head to the <strong>Calendar</strong> tab and click
+          <strong> 📚 Study for this</strong> on a saved interview to open its
+          generated prep.
         </p>
       </div>
     );
@@ -299,7 +356,7 @@ The night before: review your key stories, get good rest, and prepare your setup
             const meta = getInterviewMeta(ev);
             const prepKey = getInterviewKey(ev);
             const hasPrep = Boolean(
-              prepLibrary[prepKey]?.content || ev.content || ev.prepContent,
+              prepLibrary[prepKey]?.content || getStoredContent(ev),
             );
 
             return (
@@ -344,22 +401,43 @@ The night before: review your key stories, get good rest, and prepare your setup
                 >
                   {meta.date}
                 </p>
-                <button
-                  onClick={() => handleSelectInterview(ev)}
-                  style={{
-                    padding: "6px 14px",
-                    background: "#1e293b",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "0.78rem",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  {hasPrep ? "Open Prep ->" : "Generate Prep ->"}
-                </button>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button
+                    onClick={() => handleSelectInterview(ev)}
+                    style={{
+                      padding: "6px 14px",
+                      background: "#1e293b",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "0.78rem",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {hasPrep ? "Open Prep ->" : "No Prep Yet"}
+                  </button>
+                  {ev.id ? (
+                    <button
+                      onClick={() => handleDeleteInterview(ev)}
+                      style={{
+                        padding: "6px 10px",
+                        background: "#fee2e2",
+                        color: "#b91c1c",
+                        border: "1px solid #fecaca",
+                        borderRadius: "6px",
+                        fontSize: "0.78rem",
+                        fontWeight: "700",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                      title="Delete interview"
+                    >
+                      X
+                    </button>
+                  ) : null}
+                </div>
               </div>
             );
           })}
@@ -422,11 +500,7 @@ The night before: review your key stories, get good rest, and prepare your setup
               {activeInterview.title}
             </p>
             <p style={{ margin: 0, fontSize: "0.72rem", color: "#94a3b8" }}>
-              {loading
-                ? "Generating your prep guide..."
-                : done
-                  ? "Prep guide ready"
-                  : "Streaming response..."}
+              {done ? "Prep guide ready" : "No generated prep found"}
             </p>
           </div>
           <button
@@ -459,50 +533,13 @@ The night before: review your key stories, get good rest, and prepare your setup
             minHeight: "400px",
           }}
         >
-          {loading ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.75rem",
-                padding: "1rem 0",
-              }}
-            >
-              <div style={{ display: "flex", gap: "4px" }}>
-                {[0, 1, 2].map((j) => (
-                  <div
-                    key={j}
-                    style={{
-                      width: "7px",
-                      height: "7px",
-                      borderRadius: "50%",
-                      background: "#94a3b8",
-                      animation: `pulse 1.2s ease-in-out ${j * 0.2}s infinite`,
-                    }}
-                  />
-                ))}
-              </div>
-              <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
-                AI is researching your interview...
-              </span>
-            </div>
+          {done ? (
+            renderFormattedText(streamedText)
           ) : (
-            <>
-              {renderFormattedText(streamedText)}
-              {!done && (
-                <span
-                  style={{
-                    display: "inline-block",
-                    width: "2px",
-                    height: "1rem",
-                    background: "#1e293b",
-                    marginLeft: "2px",
-                    animation: "blink 1s step-end infinite",
-                    verticalAlign: "middle",
-                  }}
-                />
-              )}
-            </>
+            <p style={{ margin: 0, fontSize: "0.9rem", color: "#64748b" }}>
+              Prep has not been generated for this interview yet. Run a Gmail
+              scan first, then open this interview again.
+            </p>
           )}
           <div ref={bottomRef} />
         </div>
@@ -513,36 +550,15 @@ The night before: review your key stories, get good rest, and prepare your setup
               padding: "1rem 1.5rem",
               borderTop: "1px solid #f1f5f9",
               background: "#f8fafc",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "1rem",
-              flexWrap: "wrap",
             }}
           >
             <p style={{ margin: 0, fontSize: "0.82rem", color: "#64748b" }}>
-              Want to go deeper on{" "}
+              Prep guide ready for{" "}
               <strong style={{ color: "#1e293b" }}>
                 {activeInterview.title}
               </strong>
-              ?
+              .
             </p>
-            <button
-              onClick={() => onGoToAskAI(activeInterview)}
-              style={{
-                padding: "8px 18px",
-                background: "#1e293b",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                fontWeight: "700",
-                fontSize: "0.82rem",
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              Ask AI about this {"->"}
-            </button>
           </div>
         )}
       </div>
@@ -592,9 +608,8 @@ The night before: review your key stories, get good rest, and prepare your setup
               lineHeight: 1.6,
             }}
           >
-            This guide is tailored specifically to your interview. The AI
-            researches the company, role, and context to give you the most
-            relevant prep.
+            This section only shows prep that has already been generated and
+            saved for the selected interview.
           </p>
         </div>
 
@@ -619,10 +634,10 @@ The night before: review your key stories, get good rest, and prepare your setup
             After studying...
           </p>
           {[
-            "Practice mock questions with AI",
-            "Ask about company culture",
-            "Get feedback on your answers",
-            "Prepare your own questions",
+            "Practice your STAR stories out loud",
+            "Review company values and team goals",
+            "Refine concise answers for common prompts",
+            "Prepare thoughtful questions for interviewers",
           ].map((tip, i) => (
             <div
               key={i}
@@ -675,6 +690,144 @@ The night before: review your key stories, get good rest, and prepare your setup
               letterSpacing: "0.08em",
             }}
           >
+            Interview Reflection
+          </p>
+
+          <p
+            style={{
+              margin: "0 0 0.45rem",
+              fontSize: "0.75rem",
+              color: "#64748b",
+              fontWeight: "600",
+            }}
+          >
+            Outcome
+          </p>
+          <div
+            style={{ display: "flex", gap: "0.45rem", marginBottom: "0.7rem" }}
+          >
+            {[
+              { value: "good", label: "Good" },
+              { value: "okay", label: "Okay" },
+              { value: "rough", label: "Rough" },
+            ].map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setReflectionOutcome(option.value)}
+                style={{
+                  padding: "5px 9px",
+                  borderRadius: "999px",
+                  border:
+                    reflectionOutcome === option.value
+                      ? "1.5px solid #1e293b"
+                      : "1.5px solid #e2e8f0",
+                  background:
+                    reflectionOutcome === option.value ? "#f8fafc" : "white",
+                  color: "#334155",
+                  fontSize: "0.72rem",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <p
+            style={{
+              margin: "0 0 0.45rem",
+              fontSize: "0.75rem",
+              color: "#64748b",
+              fontWeight: "600",
+            }}
+          >
+            Confidence ({reflectionConfidence}/5)
+          </p>
+          <input
+            type="range"
+            min={1}
+            max={5}
+            step={1}
+            value={reflectionConfidence}
+            onChange={(e) => setReflectionConfidence(Number(e.target.value))}
+            style={{ width: "100%", marginBottom: "0.7rem" }}
+          />
+
+          <p
+            style={{
+              margin: "0 0 0.45rem",
+              fontSize: "0.75rem",
+              color: "#64748b",
+              fontWeight: "600",
+            }}
+          >
+            Notes
+          </p>
+          <textarea
+            value={reflectionNotes}
+            onChange={(e) => setReflectionNotes(e.target.value)}
+            placeholder="What went well? What would you improve next time?"
+            style={{
+              width: "100%",
+              minHeight: "90px",
+              resize: "vertical",
+              border: "1.5px solid #e2e8f0",
+              borderRadius: "8px",
+              padding: "0.55rem 0.65rem",
+              fontSize: "0.78rem",
+              color: "#334155",
+              boxSizing: "border-box",
+              fontFamily: "inherit",
+              marginBottom: "0.6rem",
+            }}
+          />
+
+          <button
+            onClick={handleSaveReflection}
+            disabled={!activeInterview?.id || savingReflection}
+            style={{
+              width: "100%",
+              padding: "0.5rem",
+              background:
+                !activeInterview?.id || savingReflection
+                  ? "#cbd5e1"
+                  : "#1e293b",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "0.78rem",
+              fontWeight: "700",
+              cursor:
+                !activeInterview?.id || savingReflection
+                  ? "not-allowed"
+                  : "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {savingReflection ? "Saving..." : "Save Reflection"}
+          </button>
+        </div>
+
+        <div
+          style={{
+            background: "white",
+            border: "1.5px solid #f1f5f9",
+            borderRadius: "14px",
+            padding: "1rem",
+          }}
+        >
+          <p
+            style={{
+              margin: "0 0 0.75rem",
+              fontSize: "0.75rem",
+              fontWeight: "700",
+              color: "#64748b",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+            }}
+          >
             Prep Library
           </p>
 
@@ -688,16 +841,13 @@ The night before: review your key stories, get good rest, and prepare your setup
                 const prepKey = getInterviewKey(interview);
                 const meta = getInterviewMeta(interview);
                 const hasPrep = Boolean(
-                  prepLibrary[prepKey]?.content ||
-                  interview.content ||
-                  interview.prepContent,
+                  prepLibrary[prepKey]?.content || getStoredContent(interview),
                 );
                 const isActive = prepKey === activePrepKey;
 
                 return (
-                  <button
+                  <div
                     key={`${prepKey}-${index}`}
-                    onClick={() => handleSelectInterview(interview)}
                     style={{
                       width: "100%",
                       border: isActive
@@ -706,84 +856,79 @@ The night before: review your key stories, get good rest, and prepare your setup
                       background: isActive ? "#f8fafc" : "white",
                       borderRadius: "10px",
                       padding: "0.7rem 0.75rem",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
                     }}
                   >
-                    <p
+                    <button
+                      onClick={() => handleSelectInterview(interview)}
                       style={{
-                        margin: "0 0 0.2rem",
-                        fontSize: "0.8rem",
-                        fontWeight: "700",
-                        color: "#1e293b",
-                        lineHeight: 1.3,
+                        width: "100%",
+                        border: "none",
+                        background: "transparent",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        padding: 0,
                       }}
                     >
-                      {meta.company}
-                    </p>
-                    <p
-                      style={{
-                        margin: "0 0 0.2rem",
-                        fontSize: "0.73rem",
-                        color: "#64748b",
-                        fontWeight: "600",
-                      }}
-                    >
-                      {meta.role}
-                    </p>
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: "0.68rem",
-                        color: hasPrep ? "#16a34a" : "#94a3b8",
-                        fontWeight: "600",
-                      }}
-                    >
-                      {hasPrep ? "Prep generated" : "Click to generate prep"}
-                    </p>
-                  </button>
+                      <p
+                        style={{
+                          margin: "0 0 0.2rem",
+                          fontSize: "0.8rem",
+                          fontWeight: "700",
+                          color: "#1e293b",
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        {meta.company}
+                      </p>
+                      <p
+                        style={{
+                          margin: "0 0 0.2rem",
+                          fontSize: "0.73rem",
+                          color: "#64748b",
+                          fontWeight: "600",
+                        }}
+                      >
+                        {meta.role}
+                      </p>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: "0.68rem",
+                          color: hasPrep ? "#16a34a" : "#94a3b8",
+                          fontWeight: "600",
+                        }}
+                      >
+                        {hasPrep ? "Prep generated" : "Prep not generated yet"}
+                      </p>
+                    </button>
+                    {interview.id ? (
+                      <button
+                        onClick={() => handleDeleteInterview(interview)}
+                        style={{
+                          marginTop: "0.5rem",
+                          padding: "4px 8px",
+                          background: "#fee2e2",
+                          color: "#b91c1c",
+                          border: "1px solid #fecaca",
+                          borderRadius: "5px",
+                          fontSize: "0.68rem",
+                          fontWeight: "700",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                        title="Delete interview"
+                      >
+                        X Remove
+                      </button>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
           )}
         </div>
-
-        {done && (
-          <button
-            onClick={() => onGoToAskAI(activeInterview)}
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              background: "white",
-              border: "1.5px solid #e2e8f0",
-              borderRadius: "10px",
-              fontSize: "0.82rem",
-              fontWeight: "600",
-              color: "#1e293b",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              textAlign: "left",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <span>🤖</span> Continue to Ask AI {"->"}
-          </button>
-        )}
       </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.3; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1); }
-        }
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0; }
-        }
-      `}</style>
     </div>
   );
 }
