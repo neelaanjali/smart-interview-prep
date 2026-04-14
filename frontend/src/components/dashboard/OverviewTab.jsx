@@ -1,4 +1,5 @@
 import React from "react";
+import aceLogoSvg from "../../assets/ace-of-spades.png"; 
 
 function OverviewTab({
   isConnecting,
@@ -47,18 +48,38 @@ function OverviewTab({
             borderRadius: "50%",
           }}
         />
-        <p
+        
+        {/* Logo and Title Section - UPDATED */}
+        <div
           style={{
-            fontSize: "0.7rem",
-            fontWeight: "700",
-            letterSpacing: "0.15em",
-            textTransform: "uppercase",
-            color: "#94a3b8",
-            margin: "0 0 1rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            marginBottom: "1rem",
           }}
         >
-          Ace AI
-        </p>
+          <img
+            src={aceLogoSvg}
+            alt="Ace AI Logo"
+            style={{
+              width: "32px",
+              height: "32px",
+            }}
+          />
+          <p
+            style={{
+              fontSize: "0.7rem",
+              fontWeight: "700",
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+              color: "#94a3b8",
+              margin: 0,
+            }}
+          >
+            Ace AI
+          </p>
+        </div>
+
         <h2
           style={{
             fontSize: "2rem",

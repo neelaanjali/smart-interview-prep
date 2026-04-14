@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { authedFetch } from "../../api/authedFetch";
+import aceLogo from "../../assets/ace-of-spades.png"; 
 
 function ProfileTab({
   user,
@@ -169,18 +170,30 @@ function ProfileTab({
         </div>
 
         <div style={{ flex: 1, zIndex: 1 }}>
-          <p
-            style={{
-              margin: "0 0 0.2rem",
-              fontSize: "0.68rem",
-              fontWeight: "700",
-              letterSpacing: "0.15em",
-              textTransform: "uppercase",
-              color: "#64748b",
-            }}
-          >
-            Your Profile
-          </p>
+          {/* FIX: Add logo next to "Your Profile" */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "0.2rem" }}>
+            <img
+              src={aceLogo}
+              alt="Ace AI Logo"
+              style={{
+                width: "18px",
+                height: "18px",
+                objectFit: "contain",
+              }}
+            />
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.68rem",
+                fontWeight: "700",
+                letterSpacing: "0.15em",
+                textTransform: "uppercase",
+                color: "#64748b",
+              }}
+            >
+              Your Profile
+            </p>
+          </div>
           <h2
             style={{
               margin: "0 0 0.3rem",
@@ -231,6 +244,7 @@ function ProfileTab({
         </div>
       </div>
 
+      {/* Rest of the component remains the same */}
       <div
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}
       >
