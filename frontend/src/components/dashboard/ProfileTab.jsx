@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { authedFetch } from "../../api/authedFetch";
 
-function ProfileTab({ user, onLogout, isGmailConnected, onDisconnectGmail }) {
+function ProfileTab({
+  user,
+  onLogout,
+  onDeleteAccount,
+  isGmailConnected,
+  onDisconnectGmail,
+}) {
   const [photo, setPhoto] = useState(user?.photoURL || null);
   const [hovering, setHovering] = useState(false);
   const [lastScanned, setLastScanned] = useState(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -311,18 +318,16 @@ function ProfileTab({ user, onLogout, isGmailConnected, onDisconnectGmail }) {
           >
             Last Scanned
           </p>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <p
-              style={{
-                margin: 0,
-                fontWeight: "600",
-                color: "#1e293b",
-                fontSize: "0.95rem",
-              }}
-            >
-              {formatLastScanned(lastScanned)}
-            </p>
-          </div>
+          <p
+            style={{
+              margin: 0,
+              fontWeight: "600",
+              color: "#1e293b",
+              fontSize: "0.95rem",
+            }}
+          >
+            {formatLastScanned(lastScanned)}
+          </p>
         </div>
 
         <div
@@ -468,6 +473,74 @@ function ProfileTab({ user, onLogout, isGmailConnected, onDisconnectGmail }) {
           }}
         >
           Sign Out
+        </button>
+      </div>
+
+      <div
+        style={{
+          background: "#fff1f2",
+          border: "1.5px solid #fecdd3",
+          borderRadius: "14px",
+          padding: "1.5rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "1rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <p
+            style={{
+              margin: "0 0 0.25rem",
+              fontWeight: "700",
+              color: "#9f1239",
+              fontSize: "0.9rem",
+            }}
+          >
+            Delete Account
+          </p>
+          <p style={{ margin: 0, fontSize: "0.8rem", color: "#be123c" }}>
+            Permanently delete your account and all interview data.
+          </p>
+        </div>
+        <button
+          onClick={async () => {
+            const confirmed = window.confirm(
+              "Delete your account and all interviews? This cannot be undone.",
+            );
+            if (!confirmed) return;
+
+            const secondConfirm = window.confirm(
+              "Final check: this will permanently remove everything. Continue?",
+            );
+            if (!secondConfirm) return;
+
+            try {
+              setIsDeletingAccount(true);
+              if (onDeleteAccount) {
+                await onDeleteAccount();
+              }
+            } finally {
+              setIsDeletingAccount(false);
+            }
+          }}
+          disabled={isDeletingAccount}
+          style={{
+            padding: "8px 20px",
+            background: isDeletingAccount ? "#fda4af" : "#be123c",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            fontSize: "0.82rem",
+            fontWeight: "700",
+            cursor: isDeletingAccount ? "not-allowed" : "pointer",
+            fontFamily: "inherit",
+            flexShrink: 0,
+            opacity: isDeletingAccount ? 0.8 : 1,
+          }}
+        >
+          {isDeletingAccount ? "Deleting..." : "Delete Account"}
         </button>
       </div>
     </div>

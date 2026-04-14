@@ -81,9 +81,16 @@ const scanGmail = async (req, res) => {
       .get();
     const userData = userDoc.exists ? userDoc.data() || {} : {};
     const lastScannedAt = userData.lastScannedAt || null;
-    const afterSeconds = lastScannedAt
+    const defaultAfterSeconds = Math.floor(
+      (Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000,
+    );
+    const parsedLastScanned = lastScannedAt
       ? Math.floor(new Date(lastScannedAt).getTime() / 1000)
       : null;
+    const afterSeconds =
+      Number.isFinite(parsedLastScanned) && parsedLastScanned > 0
+        ? parsedLastScanned
+        : defaultAfterSeconds;
 
     const interviewQuery = [
       '(interview OR recruiter OR "phone screen" OR "screening call" OR',
@@ -101,17 +108,23 @@ const scanGmail = async (req, res) => {
       "-in:chats",
     ].join(" ");
 
-    const q = afterSeconds
-      ? `${interviewQuery} after:${afterSeconds}`
-      : interviewQuery;
+    const q = `${interviewQuery} after:${afterSeconds}`;
 
-    const listResponse = await gmail.users.messages.list({
-      userId: "me",
-      maxResults: 30,
-      q,
-    });
+    let pageToken = undefined;
+    const messages = [];
+    do {
+      const listResponse = await gmail.users.messages.list({
+        userId: "me",
+        maxResults: 500,
+        q,
+        pageToken,
+      });
 
-    const messages = listResponse.data.messages || [];
+      const pageMessages = listResponse.data.messages || [];
+      messages.push(...pageMessages);
+      pageToken = listResponse.data.nextPageToken;
+    } while (pageToken);
+
     if (!messages.length) {
       await markLastScanned(req.user.uid);
       return res.json({

@@ -60,7 +60,7 @@ app.get("/interviews", verifyFirebaseUser, async (req, res) => {
         const interviewDate =
           data.interviewDate && data.interviewDate.toDate
             ? data.interviewDate.toDate().toISOString()
-            : data.date || "";
+            : data.interviewDate || data.date || "";
         return {
           id: doc.id,
           ...data,
@@ -95,6 +95,126 @@ app.get("/interviews", verifyFirebaseUser, async (req, res) => {
   } catch (error) {
     console.error("Failed to load interviews:", error);
     return res.status(500).json({ error: "Failed to load interviews." });
+  }
+});
+
+app.delete("/interviews/:id", verifyFirebaseUser, async (req, res) => {
+  try {
+    const interviewId = req.params.id;
+    if (!interviewId) {
+      return res.status(400).json({ error: "Missing interview id." });
+    }
+
+    const docRef = admin.firestore().collection("interviews").doc(interviewId);
+    const interviewDoc = await docRef.get();
+
+    if (!interviewDoc.exists) {
+      return res.status(404).json({ error: "Interview not found." });
+    }
+
+    const data = interviewDoc.data() || {};
+    if (data.uid !== req.user.uid) {
+      return res
+        .status(403)
+        .json({ error: "Not allowed to delete this interview." });
+    }
+
+    await docRef.delete();
+    return res.json({ success: true, id: interviewId });
+  } catch (error) {
+    console.error("Failed to delete interview:", error);
+    return res.status(500).json({ error: "Failed to delete interview." });
+  }
+});
+
+app.patch(
+  "/interviews/:id/reflection",
+  verifyFirebaseUser,
+  async (req, res) => {
+    try {
+      const interviewId = req.params.id;
+      if (!interviewId) {
+        return res.status(400).json({ error: "Missing interview id." });
+      }
+
+      const docRef = admin
+        .firestore()
+        .collection("interviews")
+        .doc(interviewId);
+      const interviewDoc = await docRef.get();
+
+      if (!interviewDoc.exists) {
+        return res.status(404).json({ error: "Interview not found." });
+      }
+
+      const data = interviewDoc.data() || {};
+      if (data.uid !== req.user.uid) {
+        return res
+          .status(403)
+          .json({ error: "Not allowed to update this interview." });
+      }
+
+      const reflection = (req.body && req.body.reflection) || {};
+      const payload = {
+        reflection: {
+          outcome: reflection.outcome || "",
+          confidence: Number.isFinite(reflection.confidence)
+            ? reflection.confidence
+            : null,
+          notes: reflection.notes || "",
+          updatedAt: new Date().toISOString(),
+        },
+      };
+
+      await docRef.set(payload, { merge: true });
+      return res.json({
+        success: true,
+        id: interviewId,
+        reflection: payload.reflection,
+      });
+    } catch (error) {
+      console.error("Failed to save reflection:", error);
+      return res.status(500).json({ error: "Failed to save reflection." });
+    }
+  },
+);
+
+app.delete("/account", verifyFirebaseUser, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const email = req.user.email;
+
+    const interviewsSnapshot = await admin
+      .firestore()
+      .collection("interviews")
+      .where("uid", "==", uid)
+      .get();
+
+    const batch = admin.firestore().batch();
+    interviewsSnapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+
+    const userDocRef = admin.firestore().collection("users").doc(uid);
+    batch.delete(userDocRef);
+    await batch.commit();
+
+    if (!global.gmailConnections) {
+      global.gmailConnections = {};
+    }
+    if (email) {
+      delete global.gmailConnections[email];
+    }
+
+    await admin.auth().deleteUser(uid);
+
+    return res.json({
+      success: true,
+      deletedInterviews: interviewsSnapshot.size,
+    });
+  } catch (error) {
+    console.error("Failed to delete account:", error);
+    return res.status(500).json({ error: "Failed to delete account." });
   }
 });
 

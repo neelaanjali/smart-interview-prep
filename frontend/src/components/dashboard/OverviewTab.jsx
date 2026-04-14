@@ -121,11 +121,6 @@ function OverviewTab({
           desc: "Get an AI-generated prep guide tailored to each specific interview and company.",
         },
         {
-          icon: "🤖",
-          title: "Ask AI",
-          desc: "Chat with a Gemini-powered interview coach for mock questions and feedback.",
-        },
-        {
           icon: "👤",
           title: "Your Profile",
           desc: "Manage your account and customize your interview prep experience.",

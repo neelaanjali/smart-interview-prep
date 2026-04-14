@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { authedFetch } from "../api/authedFetch";
 import { useAuth } from "../hooks/useAuth";
 import { logout } from "../services/authService";
-import AskAITab from "./dashboard/AskAITab";
 import CalendarTab from "./dashboard/CalendarTab";
 import { TABS } from "./dashboard/constants";
 import OverviewTab from "./dashboard/OverviewTab";
@@ -13,7 +12,6 @@ const Dashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(TABS.OVERVIEW);
   const [studyInterview, setStudyInterview] = useState(null);
-  const [askAIInterview, setAskAIInterview] = useState(null);
   const [pastInterviews, setPastInterviews] = useState([]);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isGmailConnected, setIsGmailConnected] = useState(false);
@@ -74,23 +72,42 @@ const Dashboard = () => {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    try {
+      const res = await authedFetch("/account", {
+        method: "DELETE",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to delete account");
+      }
+
+      await logout();
+      window.location.href = "/login?accountDeleted=1";
+    } catch (error) {
+      console.error("Failed to delete account:", error);
+      alert("Failed to delete account.");
+    }
+  };
+
   const handleStudy = (ev) => {
+    const interviewToStudy = ev?.raw?.id ? ev.raw : ev;
+
     setPastInterviews((prev) => {
-      const exists = prev.find((p) => p.title === ev.title);
+      const exists = prev.find((p) => {
+        if (interviewToStudy?.id && p?.id) {
+          return p.id === interviewToStudy.id;
+        }
+        const left = `${p?.title || ""}::${p?.date || p?.raw?.date || ""}`;
+        const right = `${interviewToStudy?.title || ""}::${interviewToStudy?.date || interviewToStudy?.raw?.date || ""}`;
+        return left === right;
+      });
       if (exists) return prev;
-      return [...prev, ev];
+      return [...prev, interviewToStudy];
     });
-    setStudyInterview(ev);
+    setStudyInterview(interviewToStudy);
     setActiveTab(TABS.STUDY);
-  };
-
-  const handleGoToAskAI = (interview) => {
-    setAskAIInterview(interview);
-    setActiveTab(TABS.ASK_AI);
-  };
-
-  const handleClearAIContext = () => {
-    setAskAIInterview(null);
   };
 
   const renderContent = () => {
@@ -125,15 +142,6 @@ const Dashboard = () => {
             }
             selectedInterview={studyInterview}
             pastInterviews={pastInterviews}
-            onGoToAskAI={handleGoToAskAI}
-          />
-        );
-
-      case TABS.ASK_AI:
-        return (
-          <AskAITab
-            contextInterview={askAIInterview}
-            onClearContext={handleClearAIContext}
           />
         );
 
@@ -142,6 +150,7 @@ const Dashboard = () => {
           <ProfileTab
             user={user}
             onLogout={handleLogout}
+            onDeleteAccount={handleDeleteAccount}
             isGmailConnected={isGmailConnected}
             onDisconnectGmail={handleDisconnectGmail}
           />
@@ -186,7 +195,9 @@ const Dashboard = () => {
           Ace AI
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          <span style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: "500" }}>
+          <span
+            style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: "500" }}
+          >
             👋 {user?.displayName || "User"}
           </span>
           <button
