@@ -1,6 +1,6 @@
 /* eslint-disable */
 
-const functions = require("firebase-functions");
+const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const express = require("express");
 const cors = require("cors");
@@ -225,4 +225,10 @@ app.post("/auth/gmailDisconnect", verifyFirebaseUser, gmailDisconnect);
 
 app.post("/gmail/scan", verifyFirebaseUser, scanGmail);
 
-exports.api = functions.https.onRequest(app);
+exports.api = onRequest(
+  {
+    timeoutSeconds: 300,
+    memory: "1GiB",
+  },
+  app,
+);

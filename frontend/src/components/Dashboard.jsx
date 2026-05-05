@@ -49,7 +49,9 @@ const Dashboard = () => {
       window.location.href = data.url;
     } catch (error) {
       console.error("Failed to connect Gmail:", error);
-      alert("Failed to connect Gmail.");
+      alert(
+        "We couldn't start the Gmail connection. Check that pop-ups are allowed, then try again.",
+      );
     } finally {
       setIsConnecting(false);
     }
@@ -68,7 +70,7 @@ const Dashboard = () => {
       alert("Gmail disconnected successfully.");
     } catch (error) {
       console.error("Failed to disconnect Gmail:", error);
-      alert("Failed to disconnect Gmail.");
+      alert("We couldn't disconnect Gmail right now. Please try again.");
     }
   };
 
@@ -87,7 +89,9 @@ const Dashboard = () => {
       window.location.href = "/login?accountDeleted=1";
     } catch (error) {
       console.error("Failed to delete account:", error);
-      alert("Failed to delete account.");
+      alert(
+        "We couldn't delete your account right now. Please try again in a moment.",
+      );
     }
   };
 

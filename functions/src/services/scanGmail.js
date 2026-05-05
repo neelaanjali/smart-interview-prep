@@ -6,6 +6,9 @@ const { createOAuthClient } = require("../services/googleOAuthClient");
 const { getBehavioralInterviews } = require("../services/deepSeekService");
 const { generateInterviewPrep } = require("../ai-prep/interview_questions");
 
+const MAX_MESSAGES_TO_ANALYZE = 40;
+const MAX_INTERVIEWS_TO_PREP = 6;
+
 const buildPrepContent = (prepItem) => {
   const title = `${prepItem.company} - ${prepItem.role}`;
   return [
@@ -93,12 +96,14 @@ const scanGmail = async (req, res) => {
         : defaultAfterSeconds;
 
     const interviewQuery = [
-      '(interview OR recruiter OR "phone screen" OR "screening call" OR',
+      "(",
+      'interview OR recruiter OR "phone screen" OR "screening call" OR',
       '"hiring manager" OR "HR interview" OR "one-way interview" OR',
-      '"prerecorded interview" OR "AI interview")',
-      '(subject:interview OR subject:"interview invitation" OR',
-      'subject:"phone screen" OR subject:"screening call" OR',
-      'subject:"HR interview" OR subject:recruiter)',
+      '"prerecorded interview" OR "AI interview" OR',
+      '"interview process" OR invite OR invitation OR schedule OR',
+      'availability OR "google meet" OR "google meets" OR',
+      '"30-45 min" OR "move forward" OR application',
+      ")",
       "-assessment",
       "-hackerrank",
       "-codility",
@@ -115,17 +120,24 @@ const scanGmail = async (req, res) => {
     do {
       const listResponse = await gmail.users.messages.list({
         userId: "me",
-        maxResults: 500,
+        maxResults: 50,
         q,
         pageToken,
       });
 
       const pageMessages = listResponse.data.messages || [];
       messages.push(...pageMessages);
+
+      if (messages.length >= MAX_MESSAGES_TO_ANALYZE) {
+        break;
+      }
+
       pageToken = listResponse.data.nextPageToken;
     } while (pageToken);
 
-    if (!messages.length) {
+    const messagesToAnalyze = messages.slice(0, MAX_MESSAGES_TO_ANALYZE);
+
+    if (!messagesToAnalyze.length) {
       await markLastScanned(req.user.uid);
       return res.json({
         results: [],
@@ -135,7 +147,7 @@ const scanGmail = async (req, res) => {
 
     const detailedMessages = [];
 
-    for (const msg of messages) {
+    for (const msg of messagesToAnalyze) {
       const messageResponse = await gmail.users.messages.get({
         userId: "me",
         id: msg.id,
@@ -165,8 +177,9 @@ const scanGmail = async (req, res) => {
     }
 
     const interviews = await getBehavioralInterviews(detailedMessages);
+    const interviewsToPrepare = interviews.slice(0, MAX_INTERVIEWS_TO_PREP);
 
-    if (!interviews.length) {
+    if (!interviewsToPrepare.length) {
       await markLastScanned(req.user.uid);
       return res.json({
         results: [],
@@ -174,7 +187,10 @@ const scanGmail = async (req, res) => {
       });
     }
 
-    const prepResults = await generateInterviewPrep(interviews);
+    const prepResults = await generateInterviewPrep(interviewsToPrepare);
+    if (prepResults.length !== interviewsToPrepare.length) {
+      throw new Error("Prep generation did not complete for all interviews.");
+    }
     const saved = [];
 
     for (const prepItem of prepResults) {
@@ -221,6 +237,10 @@ const scanGmail = async (req, res) => {
       results: saved,
       interviewsFound: interviews.length,
       prepGenerated: prepResults.length,
+      truncated: {
+        messages: messages.length > MAX_MESSAGES_TO_ANALYZE,
+        interviews: interviews.length > MAX_INTERVIEWS_TO_PREP,
+      },
     });
   } catch (error) {
     console.error("❌ Error in scanGmail:", error);

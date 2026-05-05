@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { authedFetch } from "../../api/authedFetch";
-import aceLogo from "../../assets/ace-of-spades.png"; 
+import aceLogo from "../../assets/ace-of-spades.png";
 
 function ProfileTab({
   user,
@@ -171,7 +171,14 @@ function ProfileTab({
 
         <div style={{ flex: 1, zIndex: 1 }}>
           {/* FIX: Add logo next to "Your Profile" */}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "0.2rem" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              marginBottom: "0.2rem",
+            }}
+          >
             <img
               src={aceLogo}
               alt="Ace AI Logo"
@@ -521,7 +528,7 @@ function ProfileTab({
         <button
           onClick={async () => {
             const confirmed = window.confirm(
-              "Delete your account and all interviews? This cannot be undone.",
+              "Delete your account, interviews, and reflections? You can create a new account later if needed.",
             );
             if (!confirmed) return;
 

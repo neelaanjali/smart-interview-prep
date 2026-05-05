@@ -102,7 +102,7 @@ function CalendarTab({
     if (!interviewId) return;
 
     const confirmed = window.confirm(
-      "Delete this interview from your list? This cannot be undone.",
+      "Remove this interview from Calendar and Study? You can add it back later by rescanning Gmail.",
     );
     if (!confirmed) return;
 
@@ -121,7 +121,7 @@ function CalendarTab({
       );
     } catch (error) {
       console.error("Failed to delete interview:", error);
-      alert("Failed to delete interview");
+      alert("We couldn't remove this interview. Refresh and try again.");
     }
   };
 
@@ -134,11 +134,18 @@ function CalendarTab({
         setBackendInterviews(data.results || []);
         alert("Gmail scan completed successfully!");
       } else {
-        alert(data.error || "Failed to scan Gmail");
+        alert(
+          data?.error === "Gmail is not connected for this user."
+            ? "Connect Gmail from the Overview tab first, then try scanning again."
+            : data.error ||
+                "We couldn't scan Gmail right now. Make sure Gmail is connected, then try again.",
+        );
       }
     } catch (error) {
       console.error("Failed to scan Gmail:", error);
-      alert("Failed to scan Gmail");
+      alert(
+        "We couldn't scan Gmail right now. Check your connection and try again.",
+      );
     } finally {
       setIsScanning(false);
     }

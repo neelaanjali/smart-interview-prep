@@ -118,7 +118,9 @@ function StudyTab({ selectedInterview, pastInterviews }) {
   const handleSaveReflection = async () => {
     const interviewId = activeInterview?.id;
     if (!interviewId) {
-      alert("This interview cannot store reflection yet.");
+      alert(
+        "Open a Gmail-synced interview first. Manual calendar events do not save reflections.",
+      );
       return;
     }
 
@@ -163,7 +165,9 @@ function StudyTab({ selectedInterview, pastInterviews }) {
       );
     } catch (error) {
       console.error("Failed to save reflection:", error);
-      alert("Failed to save reflection");
+      alert(
+        "We couldn't save this reflection. Check your connection and try again.",
+      );
     } finally {
       setSavingReflection(false);
     }
@@ -174,7 +178,7 @@ function StudyTab({ selectedInterview, pastInterviews }) {
     if (!interviewId) return;
 
     const confirmed = window.confirm(
-      "Delete this interview from your list? This cannot be undone.",
+      "Remove this saved interview from Study? You can bring it back later by rescanning Gmail.",
     );
     if (!confirmed) return;
 
@@ -205,7 +209,7 @@ function StudyTab({ selectedInterview, pastInterviews }) {
       }
     } catch (error) {
       console.error("Failed to delete interview:", error);
-      alert("Failed to delete interview");
+      alert("We couldn't remove this interview. Refresh and try again.");
     }
   };
 
@@ -301,8 +305,8 @@ function StudyTab({ selectedInterview, pastInterviews }) {
           }}
         >
           Head to the <strong>Calendar</strong> tab and click
-          <strong> 📚 Study for this</strong> on a saved interview to open its
-          generated prep.
+          <strong> 📚 Study for this</strong> on a saved Gmail interview to open
+          its prep.
         </p>
       </div>
     );
@@ -342,7 +346,8 @@ function StudyTab({ selectedInterview, pastInterviews }) {
             Pick an interview to study for
           </h3>
           <p style={{ color: "#94a3b8", margin: 0, fontSize: "0.85rem" }}>
-            Select one below or go to the Calendar to add a new one.
+            Select a saved interview below or go to Calendar to open one from
+            Gmail.
           </p>
         </div>
         <div
@@ -537,8 +542,8 @@ function StudyTab({ selectedInterview, pastInterviews }) {
             renderFormattedText(streamedText)
           ) : (
             <p style={{ margin: 0, fontSize: "0.9rem", color: "#64748b" }}>
-              Prep has not been generated for this interview yet. Run a Gmail
-              scan first, then open this interview again.
+              No saved prep was found for this interview. Run a Gmail scan, then
+              open it again.
             </p>
           )}
           <div ref={bottomRef} />
@@ -833,7 +838,7 @@ function StudyTab({ selectedInterview, pastInterviews }) {
 
           {interviewList.length === 0 ? (
             <p style={{ margin: 0, fontSize: "0.78rem", color: "#94a3b8" }}>
-              No interviews in your study queue yet.
+              No saved interviews yet. Open Calendar and scan Gmail first.
             </p>
           ) : (
             <div style={{ display: "grid", gap: "0.6rem" }}>
