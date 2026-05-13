@@ -13,7 +13,8 @@ const googleConnect = async (req, res) => {
       email,
     };
 
-    const state = Buffer.from(JSON.stringify(stateObject)).toString("base64url");
+    const stateJson = JSON.stringify(stateObject);
+    const state = Buffer.from(stateJson).toString("base64url");
 
     const url = oauth2Client.generateAuthUrl({
       access_type: "offline",

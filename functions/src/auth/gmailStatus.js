@@ -9,12 +9,12 @@ const gmailStatus = (req, res) => {
     }
 
     const connection = global.gmailConnections[email];
-    const isConnected = connection?.connected || false;
+    const isConnected = (connection && connection.connected) || false;
 
     return res.json({
       isConnected,
-      connectedAt: connection?.connectedAt || null,
-      connectedEmail: connection?.googleEmail || null,
+      connectedAt: (connection && connection.connectedAt) || null,
+      connectedEmail: (connection && connection.googleEmail) || null,
     });
   } catch (error) {
     console.error("Error getting Gmail status:", error);

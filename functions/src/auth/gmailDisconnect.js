@@ -8,7 +8,10 @@ const gmailDisconnect = (req, res) => {
       global.gmailConnections = {};
     }
 
-    const wasConnected = global.gmailConnections[email]?.connected || false;
+    const wasConnected =
+      (global.gmailConnections[email] &&
+        global.gmailConnections[email].connected) ||
+      false;
 
     // Remove the Gmail connection for this user
     delete global.gmailConnections[email];
